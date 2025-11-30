@@ -1,5 +1,5 @@
 /**
- * Core type definitions for xstate-lite
+ * Core type definitions for ustate
  */
 
 /**

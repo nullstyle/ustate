@@ -1,5 +1,5 @@
 /**
- * xstate-lite - A simplified XState-compatible state machine library
+ * ustate - A simplified XState-compatible state machine library
  *
  * @module
  */
@@ -13,7 +13,7 @@ export { setup } from "./setup.ts";
 export { assign } from "./actions/assign.ts";
 
 // Actor logic
-export { fromPromise, fromCallback } from "./actors/logic.ts";
+export { fromCallback, fromPromise } from "./actors/logic.ts";
 
 // Types
 export type {

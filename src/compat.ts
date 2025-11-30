@@ -2,82 +2,74 @@
  * Compatibility layer for XState migration
  */
 
-import { createMachine as createMachineCore } from './core/machine.ts';
-import type { EventObject, Machine, MachineConfig, MachineImplementations } from './core/types.ts';
+import { createMachine as createMachineCore } from "./core/machine.ts";
+import type {
+  EventObject,
+  Machine,
+  MachineConfig,
+  MachineImplementations,
+} from "./core/types.ts";
 
 /**
  * Check if a machine config uses unsupported features
  */
 function checkUnsupportedFeatures<TContext, TEvent extends EventObject>(
-  config: MachineConfig<TContext, TEvent>
+  config: MachineConfig<TContext, TEvent>,
 ): string[] {
   const warnings: string[] = [];
 
-  // Check for history states (not supported)
-  function checkForHistoryStates(states: Record<string, any>, path: string = ''): void {
+  // Check for string actor sources (not supported)
+  function checkActorSources(
+    states: Record<string, any>,
+    path: string = "",
+  ): void {
     for (const [key, state] of Object.entries(states)) {
       const statePath = path ? `${path}.${key}` : key;
-      
-      if (state.type === 'history') {
-        warnings.push(
-          `History state detected at "${statePath}". ` +
-          `Workaround: Track previous states in context.`
-        );
-      }
 
-      if (state.states) {
-        checkForHistoryStates(state.states, statePath);
-      }
-    }
-  }
-
-  // Check for invoked/spawned actors (not supported)
-  function checkForInvokedActors(states: Record<string, any>, path: string = ''): void {
-    for (const [key, state] of Object.entries(states)) {
-      const statePath = path ? `${path}.${key}` : key;
-      
       if (state.invoke) {
-        warnings.push(
-          `Invoked actor detected at "${statePath}". ` +
-          `Workaround: Manage child actors externally.`
-        );
+        const invocations = Array.isArray(state.invoke)
+          ? state.invoke
+          : [state.invoke];
+        for (const invocation of invocations) {
+          if (typeof invocation.src === "string") {
+            warnings.push(
+              `String actor source "${invocation.src}" detected at "${statePath}". ` +
+                `Workaround: Import the actor logic directly.`,
+            );
+          }
+        }
       }
 
       if (state.states) {
-        checkForInvokedActors(state.states, statePath);
+        checkActorSources(state.states, statePath);
       }
     }
   }
 
-  // Check for delayed transitions (not supported)
-  function checkForDelayedTransitions(states: Record<string, any>, path: string = ''): void {
+  // Check for final states (not supported)
+  function checkFinalStates(
+    states: Record<string, any>,
+    path: string = "",
+  ): void {
     for (const [key, state] of Object.entries(states)) {
       const statePath = path ? `${path}.${key}` : key;
-      
-      if (state.after) {
-        warnings.push(
-          `Delayed transition (after) detected at "${statePath}". ` +
-          `Workaround: Use setTimeout in entry actions.`
-        );
-      }
 
-      if (state.always) {
+      if (state.type === "final") {
         warnings.push(
-          `Always transition detected at "${statePath}". ` +
-          `Workaround: Use explicit events instead.`
+          `Final state detected at "${statePath}". ` +
+            `Workaround: Use a normal state with no transitions.`,
         );
       }
 
       if (state.states) {
-        checkForDelayedTransitions(state.states, statePath);
+        checkFinalStates(state.states, statePath);
       }
     }
   }
 
   if (config.states) {
-    checkForHistoryStates(config.states);
-    checkForInvokedActors(config.states);
-    checkForDelayedTransitions(config.states);
+    checkActorSources(config.states);
+    checkFinalStates(config.states);
   }
 
   return warnings;
@@ -88,13 +80,13 @@ function checkUnsupportedFeatures<TContext, TEvent extends EventObject>(
  */
 export function createMachine<TContext, TEvent extends EventObject>(
   config: MachineConfig<TContext, TEvent>,
-  implementations?: MachineImplementations<TContext, TEvent>
+  implementations?: MachineImplementations<TContext, TEvent>,
 ): Machine<TContext, TEvent> {
   const warnings = checkUnsupportedFeatures(config);
-  
+
   if (warnings.length > 0) {
-    console.warn('⚠️  ustate compatibility warnings:');
-    warnings.forEach(warning => console.warn(`  - ${warning}`));
+    console.warn("⚠️  ustate compatibility warnings:");
+    warnings.forEach((warning) => console.warn(`  - ${warning}`));
   }
 
   return createMachineCore(config, implementations);
@@ -109,25 +101,23 @@ export function getCompatibilityInfo(): {
 } {
   return {
     supported: [
-      'Flat state machines',
-      'Hierarchical (nested) states',
-      'Parallel states',
-      'Event-driven transitions',
-      'Context management with assign()',
-      'Entry and exit actions',
-      'Transition actions',
-      'Guards (conditional transitions)',
-      'setup() function',
-      'machine.provide() for implementation overrides',
-      'State matching with state.matches()',
-      'Event capability checking with state.can()'
+      "Flat state machines",
+      "Hierarchical (nested) states",
+      "Parallel states",
+      "Event-driven transitions",
+      "Context management with assign()",
+      "Entry and exit actions",
+      "Transition actions",
+      "Guards (conditional transitions)",
+      "setup() function",
+      "machine.provide() for implementation overrides",
+      "State matching with state.matches()",
+      "Event capability checking with state.can()",
     ],
     unsupported: [
-      'History states',
-      'Invoked actors',
-      'Spawned actors',
-      'Delayed transitions (after)',
-      'Always transitions'
-    ]
+      'String actor sources (e.g. src: "myService")',
+      'Final states (type: "final")',
+      "SCXML-specific features (datamodel, etc.)",
+    ],
   };
 }

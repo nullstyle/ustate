@@ -1,6 +1,6 @@
 # ustate
 
-A powerful, JSR-native state machine library with full XState API compatibility.
+A JSR-native state machine library with full XState API compatibility.  *Yo, this library was completely vibe-coded*.  Don't use it without doing your due diligence.  This one is just for me.
 
 **ustate** provides a complete implementation of state machines and statecharts with support for hierarchical states, parallel states, and actor systems, designed to be compatible with the XState API while focusing on simplicity and ease of use. It is published to JSR (JavaScript Registry) and works seamlessly with Deno, Node.js, and browsers.
 
