@@ -1,14 +1,14 @@
 {
   "name": "@nullstyle/ustate",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "exports": "./src/mod.ts",
   "tasks": {
-    "test": "deno test --allow-all",
-    "example:counter": "deno run --allow-all examples/counter.ts",
-    "example:toggle": "deno run --allow-all examples/toggle.ts",
-    "example:text-editor": "deno run --allow-all examples/text-editor.ts",
-    "example:traffic-light": "deno run --allow-all examples/traffic-light.ts",
-    "example:media-player": "deno run --allow-all examples/media-player.ts"
+    "test": "deno test",
+    "example:counter": "deno run examples/counter.ts",
+    "example:toggle": "deno run examples/toggle.ts",
+    "example:text-editor": "deno run examples/text-editor.ts",
+    "example:traffic-light": "deno run examples/traffic-light.ts",
+    "example:media-player": "deno run examples/media-player.ts"
   },
   "publish": {
     "include": ["src/", "README.md", "LICENSE"],
