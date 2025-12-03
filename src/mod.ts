@@ -11,6 +11,7 @@ export { setup } from "./setup.ts";
 
 // Utilities
 export { waitFor } from "./utils.ts";
+export { toMermaid } from "./mermaid.ts";
 
 // Actions
 export { assign } from "./actions/assign.ts";
