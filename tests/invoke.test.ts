@@ -1,6 +1,7 @@
 import { assertEquals } from "@std/assert";
 import { createActor, createMachine } from "../src/mod.ts";
 import { fromCallback, fromPromise } from "../src/actors/logic.ts";
+import type { ActorLogic } from "../src/core/types.ts";
 
 Deno.test("invoke - promise actor resolves successfully", async () => {
   const events: string[] = [];
@@ -21,11 +22,10 @@ Deno.test("invoke - promise actor resolves successfully", async () => {
       loading: {
         invoke: {
           id: "fetcher",
-          // deno-lint-ignore no-explicit-any
           src: fromPromise(async () => {
             await new Promise((resolve) => setTimeout(resolve, 10));
             return "Hello, World!";
-          }) as any,
+          }) as ActorLogic<unknown, unknown, EventObject>,
           onDone: {
             target: "success",
             actions: ({ context, event }) => {
