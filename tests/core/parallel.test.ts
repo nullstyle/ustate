@@ -177,28 +177,18 @@ Deno.test("Parallel: Actions execute in document order across regions", () => {
 
   actor.send({ type: "TRIGGER" });
 
-  // NOTE: ustate processes only the first matching transition in parallel regions
-  // This is an implementation difference from XState which processes all regions
+  // All three regions should have transitioned
   // deno-lint-ignore no-explicit-any
   const snap = actor.getSnapshot().value as any;
+  assertEquals(snap.active.first, "done");
+  assertEquals(snap.active.second, "done");
+  assertEquals(snap.active.third, "done");
 
-  // At least one region should have transitioned
-  const transitionedCount = [
-    snap.active.first === "done",
-    snap.active.second === "done",
-    snap.active.third === "done",
-  ].filter(Boolean).length;
-
-  assertEquals(
-    transitionedCount >= 1,
-    true,
-    "At least one region should transition",
-  );
-  assertEquals(
-    actionLog.length >= 1,
-    true,
-    "At least one action should execute",
-  );
+  // Actions should have executed (order may vary by implementation)
+  assertEquals(actionLog.length, 3);
+  assertEquals(actionLog.includes("first"), true);
+  assertEquals(actionLog.includes("second"), true);
+  assertEquals(actionLog.includes("third"), true);
 });
 
 Deno.test("Parallel: Entry actions execute for all regions on entry", () => {
@@ -417,7 +407,9 @@ Deno.test("Parallel: Self-transition on parallel state resets all regions", () =
 // Conflict Resolution Tests
 // =============================================================================
 
-Deno.test("Parallel: Parent transition preempts child transitions", () => {
+Deno.test("Parallel: Child transition takes priority over parent (SCXML semantics)", () => {
+  // Per SCXML specification, event handling starts at the deepest active state
+  // and bubbles up. If a child handles the event, the parent handler is not invoked.
   const actionLog: string[] = [];
 
   const machine = createMachine({
@@ -457,18 +449,52 @@ Deno.test("Parallel: Parent transition preempts child transitions", () => {
 
   actor.send({ type: "SHARED_EVENT" });
 
-  // NOTE: ustate prioritizes child transitions over parent transitions
-  // This is different from XState which gives parent priority
-  // Testing actual ustate behavior:
-  const snap = actor.getSnapshot().value;
-  // Either behavior is valid - document actual behavior
-  if (snap === "outside") {
-    assertEquals(actionLog, ["parent:transition"]);
-  } else {
-    // deno-lint-ignore no-explicit-any
-    assertEquals((snap as any).parallel.region1, "b");
-    assertEquals(actionLog, ["child:transition"]);
-  }
+  // Child handler takes priority - transitions to 'b' within region1
+  // Parent handler is NOT invoked because child handled the event
+  // deno-lint-ignore no-explicit-any
+  const snap = actor.getSnapshot().value as any;
+  assertEquals(snap.parallel.region1, "b");
+  assertEquals(actionLog, ["child:transition"]);
+});
+
+Deno.test("Parallel: Parent handles event when child has no handler", () => {
+  const actionLog: string[] = [];
+
+  const machine = createMachine({
+    initial: "parallel",
+    states: {
+      parallel: {
+        type: "parallel",
+        states: {
+          region1: {
+            initial: "a",
+            states: {
+              a: {
+                // No handler for PARENT_ONLY event
+              },
+              b: {},
+            },
+          },
+        },
+        on: {
+          PARENT_ONLY: {
+            target: "outside",
+            actions: () => actionLog.push("parent:transition"),
+          },
+        },
+      },
+      outside: {},
+    },
+  });
+
+  const actor = createActor(machine);
+  actor.start();
+
+  actor.send({ type: "PARENT_ONLY" });
+
+  // Parent handler fires because child has no handler for this event
+  assertEquals(actor.getSnapshot().value, "outside");
+  assertEquals(actionLog, ["parent:transition"]);
 });
 
 Deno.test("Parallel: Child handles event if parent has no handler", () => {
@@ -519,18 +545,11 @@ Deno.test("Parallel: Child handles event if parent has no handler", () => {
 
   actor.send({ type: "CHILD_ONLY" });
 
-  // NOTE: ustate processes first matching transition, not all parallel regions
+  // Both children should handle the event
   // deno-lint-ignore no-explicit-any
   const snap = actor.getSnapshot().value as any;
-
-  // At least one region should handle the event
-  const r1Handled = snap.parallel.region1 === "b";
-  const r2Handled = snap.parallel.region2 === "y";
-  assertEquals(
-    r1Handled || r2Handled,
-    true,
-    "At least one region should handle event",
-  );
+  assertEquals(snap.parallel.region1, "b");
+  assertEquals(snap.parallel.region2, "y");
 });
 
 Deno.test("Parallel: Deep child handlers bubble up correctly", () => {
@@ -617,13 +636,9 @@ Deno.test("Parallel: Event handled at different levels in different regions", ()
 
   actor.send({ type: "MIXED_EVENT" });
 
-  // NOTE: ustate may only process one transition per event
-  // At least one handler should be called
-  assertEquals(
-    actionLog.length >= 1,
-    true,
-    "At least one handler should be called",
-  );
+  // Both regions should handle the event at their respective levels
+  assertEquals(actionLog.includes("region1:handled"), true);
+  assertEquals(actionLog.includes("region2.b:handled"), true);
 });
 
 // =============================================================================
@@ -748,13 +763,9 @@ Deno.test("Parallel: Multiple regions can update context in same event", () => {
   actor.send({ type: "TRIGGER" });
 
   const log = actor.getSnapshot().context.log;
-  // NOTE: ustate may only process one transition per event in parallel regions
-  // At least one region should have logged
-  assertEquals(
-    log.length >= 1,
-    true,
-    "At least one region should update context",
-  );
+  assertEquals(log.length, 2);
+  assertEquals(log.includes("region1"), true);
+  assertEquals(log.includes("region2"), true);
 });
 
 // =============================================================================

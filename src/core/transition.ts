@@ -362,7 +362,17 @@ export function computeTransition<TContext, TEvent extends EventObject>(
 ): TransitionResult<TContext> {
   const currentPaths = stateValueToPaths(currentState);
 
-  // For parallel states, try to find transition in any region
+  // For parallel states, collect ALL transitions from all regions
+  interface TransitionInfo {
+    transition: TransitionConfig<TContext, TEvent>;
+    fromPath: string[];
+    fullTargetPath: string[];
+    lcaIndex: number;
+  }
+
+  const allTransitions: TransitionInfo[] = [];
+
+  // Find transitions in all parallel paths
   for (let pathIndex = 0; pathIndex < currentPaths.length; pathIndex++) {
     const currentPath = currentPaths[pathIndex];
     const result = findTransitionInPath(
@@ -404,23 +414,91 @@ export function computeTransition<TContext, TEvent extends EventObject>(
         lcaIndex--;
       }
 
+      // Check if this transition conflicts with an already found transition
+      // (i.e., they share an ancestor that would be exited)
+      let conflicts = false;
+      for (const existing of allTransitions) {
+        // If one fromPath is a prefix of the other, they conflict
+        const minLen = Math.min(existing.fromPath.length, fromPath.length);
+        let sharedPrefix = 0;
+        while (
+          sharedPrefix < minLen &&
+          existing.fromPath[sharedPrefix] === fromPath[sharedPrefix]
+        ) {
+          sharedPrefix++;
+        }
+        // If the shared prefix covers the LCA of either, they conflict
+        if (sharedPrefix >= existing.lcaIndex || sharedPrefix >= lcaIndex) {
+          // Check if one is ancestor of other
+          if (
+            existing.fromPath.length <= fromPath.length &&
+            fromPath
+              .slice(0, existing.fromPath.length)
+              .every((s, i) => s === existing.fromPath[i])
+          ) {
+            conflicts = true;
+            break;
+          }
+          if (
+            fromPath.length <= existing.fromPath.length &&
+            existing.fromPath
+              .slice(0, fromPath.length)
+              .every((s, i) => s === fromPath[i])
+          ) {
+            conflicts = true;
+            break;
+          }
+        }
+      }
+
+      if (!conflicts) {
+        allTransitions.push({ transition, fromPath, fullTargetPath, lcaIndex });
+      }
+    }
+  }
+
+  // Process all collected transitions
+  if (allTransitions.length > 0) {
+    const effects: unknown[] = [];
+    const newHistoryValue = { ...(historyValue || {}) };
+    const visitedExit = new Set<string>();
+    const visitedEnter = new Set<string>();
+    const nodesToExit: {
+      path: string[];
+      config: StateNodeConfig<TContext, TEvent>;
+    }[] = [];
+    const nodesToEnter: {
+      path: string[];
+      config: StateNodeConfig<TContext, TEvent>;
+    }[] = [];
+    const allNextStateValues: StateValue[] = [];
+    const allAffectedCurrentPaths: string[][] = [];
+    const transitionActions: Array<
+      ActionDefinition<TContext, TEvent> | ActionDefinition<TContext, TEvent>[]
+    > = [];
+
+    for (
+      const { transition, fromPath, fullTargetPath, lcaIndex } of allTransitions
+    ) {
+      const lcaPath = fromPath.slice(0, lcaIndex);
+
       // Resolve next state value (handling history, parallel, etc.)
       const nextStateValue = resolveTarget(
         machine,
         fullTargetPath,
         historyValue,
       );
+      allNextStateValues.push(nextStateValue);
       const nextPaths = stateValueToPaths(nextStateValue);
-      const lcaPath = fromPath.slice(0, lcaIndex);
 
-      // Identify affected paths in current state
+      // Identify affected paths in current state for this transition
       const affectedCurrentPaths = currentPaths.filter((p) =>
         p.length >= lcaIndex &&
         p.slice(0, lcaIndex).every((seg, i) => seg === lcaPath[i])
       );
+      allAffectedCurrentPaths.push(...affectedCurrentPaths);
 
       // Capture history for exited states
-      const newHistoryValue = { ...(historyValue || {}) };
       const exitedPathsSet = new Set<string>();
       affectedCurrentPaths.forEach((p) => {
         for (let i = p.length; i >= lcaIndex; i--) {
@@ -443,13 +521,6 @@ export function computeTransition<TContext, TEvent extends EventObject>(
         }
       }
 
-      const effects: unknown[] = [];
-      const visitedExit = new Set<string>();
-      const nodesToExit: {
-        path: string[];
-        config: StateNodeConfig<TContext, TEvent>;
-      }[] = [];
-
       // Collect exit actions
       affectedCurrentPaths.forEach((p) => {
         for (let i = p.length; i > lcaIndex; i--) {
@@ -463,38 +534,16 @@ export function computeTransition<TContext, TEvent extends EventObject>(
         }
       });
 
-      nodesToExit.sort((a, b) => b.path.length - a.path.length);
-
-      for (const { config } of nodesToExit) {
-        if (config.exit) {
-          const res = executeActions(
-            config.exit,
-            { context: currentContext, event, spawn },
-            machine.implementations,
-          );
-          effects.push(...res);
-        }
+      // Collect transition actions
+      if (transition.actions) {
+        transitionActions.push(transition.actions);
       }
-
-      // Execute transition actions
-      const transitionResults = executeActions(
-        transition.actions,
-        { context: currentContext, event, spawn },
-        machine.implementations,
-      );
-      effects.push(...transitionResults);
 
       // Collect entry actions
       const affectedNextPaths = nextPaths.filter((p) =>
         p.length >= lcaIndex &&
         p.slice(0, lcaIndex).every((seg, i) => seg === lcaPath[i])
       );
-
-      const visitedEnter = new Set<string>();
-      const nodesToEnter: {
-        path: string[];
-        config: StateNodeConfig<TContext, TEvent>;
-      }[] = [];
 
       affectedNextPaths.forEach((p) => {
         for (let i = lcaIndex + 1; i <= p.length; i++) {
@@ -507,48 +556,73 @@ export function computeTransition<TContext, TEvent extends EventObject>(
           }
         }
       });
-
-      nodesToEnter.sort((a, b) => a.path.length - b.path.length);
-
-      for (const { config } of nodesToEnter) {
-        if (config.entry) {
-          const res = executeActions(
-            config.entry,
-            { context: currentContext, event, spawn },
-            machine.implementations,
-          );
-          effects.push(...res);
-        }
-      }
-
-      // Construct Final State
-      const unaffectedPaths = currentPaths.filter((p) =>
-        p.length < lcaIndex ||
-        !p.slice(0, lcaIndex).every((seg, i) => seg === lcaPath[i])
-      );
-
-      const unaffectedStateValues = unaffectedPaths.map((p) =>
-        pathToStateValue(p)
-      );
-      const finalState = mergeStateValues(
-        ...unaffectedStateValues,
-        nextStateValue,
-      );
-
-      const completedState = completeStateValue(
-        machine,
-        finalState,
-        newHistoryValue,
-      );
-
-      return {
-        nextState: completedState,
-        nextContext: currentContext,
-        changed: true,
-        effects,
-        historyValue: newHistoryValue,
-      };
     }
+
+    // Sort and execute exit actions (deepest first)
+    nodesToExit.sort((a, b) => b.path.length - a.path.length);
+    for (const { config } of nodesToExit) {
+      if (config.exit) {
+        const res = executeActions(
+          config.exit,
+          { context: currentContext, event, spawn },
+          machine.implementations,
+        );
+        effects.push(...res);
+      }
+    }
+
+    // Execute all transition actions
+    for (const actions of transitionActions) {
+      const transitionResults = executeActions(
+        actions,
+        { context: currentContext, event, spawn },
+        machine.implementations,
+      );
+      effects.push(...transitionResults);
+    }
+
+    // Sort and execute entry actions (shallowest first)
+    nodesToEnter.sort((a, b) => a.path.length - b.path.length);
+    for (const { config } of nodesToEnter) {
+      if (config.entry) {
+        const res = executeActions(
+          config.entry,
+          { context: currentContext, event, spawn },
+          machine.implementations,
+        );
+        effects.push(...res);
+      }
+    }
+
+    // Construct Final State - merge all next state values with unaffected paths
+    const affectedPathsSet = new Set(
+      allAffectedCurrentPaths.map((p) => p.join(".")),
+    );
+    const unaffectedPaths = currentPaths.filter(
+      (p) => !affectedPathsSet.has(p.join(".")),
+    );
+
+    const unaffectedStateValues = unaffectedPaths.map((p) =>
+      pathToStateValue(p)
+    );
+    const finalState = mergeStateValues(
+      ...unaffectedStateValues,
+      ...allNextStateValues,
+    );
+
+    const completedState = completeStateValue(
+      machine,
+      finalState,
+      newHistoryValue,
+    );
+
+    return {
+      nextState: completedState,
+      nextContext: currentContext,
+      changed: true,
+      effects,
+      historyValue: newHistoryValue,
+    };
   }
 
   // Try global transitions
@@ -650,8 +724,23 @@ function recursiveResolve<TContext, TEvent extends EventObject>(
 
     if (history) {
       const type = stateNode.history === "deep" ? "deep" : "shallow";
-      const value = getHistoryValue(history, type);
-      return wrapValueInPath(parentPath, value);
+
+      if (type === "deep") {
+        // Deep history: restore the entire nested state configuration
+        const value = getHistoryValue(history, type);
+        return wrapValueInPath(parentPath, value);
+      } else {
+        // Shallow history: only restore the immediate child, then resolve its initial states
+        const shallowValue = getHistoryValue(history, "shallow");
+        // shallowValue is the immediate child state name (e.g., "level1")
+        if (typeof shallowValue === "string") {
+          // Resolve the target to fill in initial states of nested children
+          const targetPath = [...parentPath, shallowValue];
+          return resolveTarget(machine, targetPath, {}); // Empty history to reset nested states
+        }
+        // For parallel states or complex values, wrap directly
+        return wrapValueInPath(parentPath, shallowValue);
+      }
     }
 
     // Default history target

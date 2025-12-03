@@ -14,21 +14,29 @@ import { assign } from "../../src/actions/assign.ts";
 // Deep vs. Shallow History Tests
 // =============================================================================
 
-Deno.test("History: Shallow history restores immediate child (simple case)", () => {
-  // This test uses a simpler structure to verify basic shallow history behavior
+Deno.test("History: Shallow history only restores immediate child, resets nested", () => {
+  // XState behavior: shallow history remembers only the immediate child state,
+  // and nested states are reset to their initial states.
   const machine = createMachine({
     initial: "parent",
     states: {
       parent: {
-        initial: "childA",
+        initial: "level1",
         states: {
-          childA: {
-            on: { GO_B: { target: "childB" } },
+          level1: {
+            initial: "level2a",
+            states: {
+              level2a: {
+                on: { GO_DEEP: { target: "level2b" } },
+              },
+              level2b: {
+                initial: "level3",
+                states: {
+                  level3: {},
+                },
+              },
+            },
           },
-          childB: {
-            on: { GO_C: { target: "childC" } },
-          },
-          childC: {},
           hist: { type: "history" }, // Shallow by default
         },
         on: { EXIT: { target: "outside" } },
@@ -42,18 +50,21 @@ Deno.test("History: Shallow history restores immediate child (simple case)", () 
   const actor = createActor(machine);
   actor.start();
 
-  // Go to childB
-  actor.send({ type: "GO_B" });
-  assertEquals(actor.getSnapshot().value, { parent: "childB" });
+  // Go deep: parent.level1.level2b.level3
+  actor.send({ type: "GO_DEEP" });
+  assertEquals(actor.getSnapshot().value, {
+    parent: { level1: { level2b: "level3" } },
+  });
 
   // Exit parent
   actor.send({ type: "EXIT" });
   assertEquals(actor.getSnapshot().value, "outside");
 
-  // Return via shallow history - should restore to childB
+  // Return via shallow history - should restore to level1, but level1 should restart at its initial (level2a)
   actor.send({ type: "RETURN" });
   const snapshot = actor.getSnapshot();
-  assertEquals(snapshot.value, { parent: "childB" });
+  // Shallow history remembers 'level1' but level1 restarts at its initial 'level2a'
+  assertEquals(snapshot.value, { parent: { level1: "level2a" } });
 });
 
 Deno.test("History: Deep history restores entire nested state hierarchy", () => {
