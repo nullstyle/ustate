@@ -8,6 +8,7 @@ import type {
   InvokeConfig,
   Machine,
   Observer,
+  StateNodeConfig,
   StateSnapshot,
   StateValue,
   Subscription,
@@ -45,11 +46,13 @@ function deepClone<T>(value: T, seen = new WeakMap()): T {
 
   // Date
   if (value instanceof Date) {
+    // deno-lint-ignore no-explicit-any
     return new Date(value) as any;
   }
 
   // RegExp
   if (value instanceof RegExp) {
+    // deno-lint-ignore no-explicit-any
     return new RegExp(value) as any;
   }
 
@@ -60,6 +63,7 @@ function deepClone<T>(value: T, seen = new WeakMap()): T {
     for (const [k, v] of value) {
       copy.set(deepClone(k, seen), deepClone(v, seen));
     }
+    // deno-lint-ignore no-explicit-any
     return copy as any;
   }
 
@@ -70,24 +74,29 @@ function deepClone<T>(value: T, seen = new WeakMap()): T {
     for (const v of value) {
       copy.add(deepClone(v, seen));
     }
+    // deno-lint-ignore no-explicit-any
     return copy as any;
   }
 
   // Array
   if (Array.isArray(value)) {
+    // deno-lint-ignore no-explicit-any
     const copy: any[] = [];
     seen.set(value, copy);
     for (let i = 0; i < value.length; i++) {
       copy[i] = deepClone(value[i], seen);
     }
+    // deno-lint-ignore no-explicit-any
     return copy as any;
   }
 
   // Plain Object
+  // deno-lint-ignore no-explicit-any
   const copy = {} as any;
   seen.set(value, copy);
   for (const key in value) {
     if (Object.prototype.hasOwnProperty.call(value, key)) {
+      // deno-lint-ignore no-explicit-any
       copy[key] = deepClone((value as any)[key], seen);
     }
   }
@@ -108,10 +117,12 @@ function cloneContext<T>(context: T): T {
 // Internal interface for invoked actors (matching the one in invoke.ts)
 interface InvokedActorRef {
   id: string;
-  send: (event: any) => void;
+  send: (event: EventObject) => void;
   stop: () => void;
-  getSnapshot: () => StateSnapshot<any>;
-  subscribe?: (observer: (state: StateSnapshot<any>) => void) => Subscription;
+  getSnapshot: () => StateSnapshot<unknown>;
+  subscribe?: (
+    observer: (state: StateSnapshot<unknown>) => void,
+  ) => Subscription;
 }
 
 /**
@@ -143,7 +154,7 @@ export function createActor<TContext, TEvent extends EventObject>(
   // Map of path string -> invoked actors for that path
   const invokedActors: Map<string, InvokedActorRef[]> = new Map();
   // Map of path string -> timer IDs for delayed transitions
-  const delayedTransitions: Map<string, any[]> = new Map();
+  const delayedTransitions: Map<string, number[]> = new Map();
   const spawnedActors: Map<string, SpawnedActorRef> = new Map();
   const spawnFn = createSpawnFunction(
     spawnedActors,
@@ -221,12 +232,14 @@ export function createActor<TContext, TEvent extends EventObject>(
   /**
    * Process action effects
    */
-  function processEffects(effects: any[]): void {
+  function processEffects(effects: unknown[]): void {
     for (const effect of effects) {
       if (!effect || typeof effect !== "object") continue;
+      // deno-lint-ignore no-explicit-any
+      const e = effect as any;
 
-      if (effect.type === "$$sendTo") {
-        const { actorId, event: eventToSend } = effect;
+      if (e.type === "$$sendTo") {
+        const { actorId, event: eventToSend } = e;
 
         // Check spawned actors
         const spawned = spawnedActors.get(actorId);
@@ -249,9 +262,9 @@ export function createActor<TContext, TEvent extends EventObject>(
         if (!found) {
           console.warn(`Actor with id "${actorId}" not found`);
         }
-      } else if (effect.type === "$$sendParent") {
+      } else if (e.type === "$$sendParent") {
         if (options?.sendParent) {
-          options.sendParent(effect.event);
+          options.sendParent(e.event);
         } else {
           console.warn("sendParent called but no parent actor defined");
         }
@@ -263,45 +276,53 @@ export function createActor<TContext, TEvent extends EventObject>(
    * Process an event (can be called internally for invoked actor events)
    */
   function processEvent(event: TEvent | EventObject): void {
-    if (!started) {
-      console.warn("Actor not started. Call start() before sending events.");
-      return;
-    }
+    try {
+      if (!started) {
+        console.warn("Actor not started. Call start() before sending events.");
+        return;
+      }
 
-    // Make a copy of context for this transition
-    const contextCopy = cloneContext(currentContext);
+      // Make a copy of context for this transition
+      const contextCopy = cloneContext(currentContext);
 
-    const previousState = currentState;
+      const previousState = currentState;
 
-    let result = computeTransition(
-      machine,
-      currentState,
-      contextCopy,
-      event as TEvent,
-      historyValue,
-      spawnFn,
-    );
+      // deno-lint-ignore prefer-const
+      let result = computeTransition(
+        machine,
+        currentState,
+        contextCopy,
+        event as TEvent,
+        historyValue,
+        spawnFn,
+      );
 
-    // Update state and context
-    currentState = result.nextState;
-    currentContext = result.nextContext;
-    if (result.historyValue) {
-      historyValue = result.historyValue;
-    }
+      // Update state and context
+      currentState = result.nextState;
+      currentContext = result.nextContext;
+      if (result.historyValue) {
+        historyValue = result.historyValue;
+      }
 
-    // Handle invoked actors if state changed
-    if (result.changed && previousState !== currentState) {
-      handleInvokedActors(previousState, currentState, event as TEvent);
-    }
+      // Handle invoked actors if state changed
+      if (result.changed && previousState !== currentState) {
+        handleInvokedActors(previousState, currentState, event as TEvent);
+      }
 
-    // Process effects
-    if (result.effects) {
-      processEffects(result.effects);
-    }
+      // Process effects
+      if (result.effects) {
+        processEffects(result.effects);
+      }
 
-    // Handle transient transitions (always)
-    if (result.changed) {
-      processAlways(event);
+      // Notify observers
+      notify();
+
+      // Handle transient transitions (always)
+      if (result.changed) {
+        processAlways(event);
+      }
+    } catch (error) {
+      console.error("[Actor] Error processing event:", error);
     }
   }
 
@@ -344,6 +365,10 @@ export function createActor<TContext, TEvent extends EventObject>(
         if (result.effects) {
           processEffects(result.effects);
         }
+
+        // Notify observers of the transient state change
+        notify();
+
         steps++;
       } else {
         keepGoing = false;
@@ -359,12 +384,12 @@ export function createActor<TContext, TEvent extends EventObject>(
    * Helper to start invocations for a specific state node
    */
   function startDelays(
-    stateNode: any,
+    stateNode: StateNodeConfig<TContext, TEvent>,
     pathStr: string,
     event: TEvent,
   ): void {
     if (stateNode.after) {
-      const timers: any[] = [];
+      const timers: number[] = [];
       for (const key of Object.keys(stateNode.after)) {
         const delay = resolveDelay(
           key,
@@ -372,6 +397,7 @@ export function createActor<TContext, TEvent extends EventObject>(
           machine.implementations,
         );
         const timerId = setTimeout(() => {
+          // deno-lint-ignore no-explicit-any
           processEvent({ type: "$delay", key } as any);
         }, delay);
         timers.push(timerId);

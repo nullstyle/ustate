@@ -6,7 +6,7 @@ import type {
   ActionContext,
   ActionDefinition,
   ActionFunction,
-  DelayFunction,
+  ActorLogic,
   EventObject,
   GuardDefinition,
   GuardFunction,
@@ -15,11 +15,10 @@ import type {
   StateNodeConfig,
   StateValue,
   TransitionConfig,
+  TransitionDefinition,
 } from "./types.ts";
 import {
   getHistoryValue,
-  getSubStateValue,
-  getTopLevelState,
   mergeStateValues,
   pathToStateValue,
   stateValueToPaths,
@@ -108,15 +107,16 @@ export function executeActions<TContext, TEvent extends EventObject>(
   >[] | undefined,
   context: ActionContext<TContext, TEvent>,
   implementations?: MachineImplementations<TContext, TEvent>,
-): any[] {
+): unknown[] {
   if (!actions) return [];
 
-  const results: any[] = [];
+  const results: unknown[] = [];
   const actionList = Array.isArray(actions) ? actions : [actions];
 
   for (const action of actionList) {
     const actionFn = resolveAction(action, implementations);
     if (actionFn) {
+      // deno-lint-ignore no-explicit-any
       const result = (actionFn as any)(context);
       if (result !== undefined) {
         results.push(result);
@@ -199,7 +199,10 @@ export function findTransitionInPath<TContext, TEvent extends EventObject>(
   event: TEvent,
   context: TContext,
   implementations?: MachineImplementations<TContext, TEvent>,
-  spawn?: (logic: any, options?: any) => any,
+  spawn?: (
+    logic: ActorLogic<unknown, unknown, EventObject>,
+    options?: { id?: string; input?: unknown },
+  ) => unknown,
 ):
   | { transition: TransitionConfig<TContext, TEvent>; fromPath: string[] }
   | null {
@@ -210,30 +213,29 @@ export function findTransitionInPath<TContext, TEvent extends EventObject>(
 
     // Handle always transitions
     if (stateNode?.always) {
-      const candidates = Array.isArray(stateNode.always)
-        ? stateNode.always
-        : [stateNode.always];
-      for (const candidate of candidates) {
-        const guardPassed = evaluateGuard(
-          candidate.guard,
-          { context, event, spawn },
-          implementations,
-        );
-        if (guardPassed) {
-          return { transition: candidate, fromPath: currentPath };
-        }
+      const transition = findValidTransition(
+        stateNode.always,
+        context,
+        event,
+        spawn,
+        implementations,
+      );
+      if (transition) {
+        return { transition, fromPath: currentPath };
       }
     }
 
     if (stateNode?.on) {
-      const transition = stateNode.on[event.type as TEvent["type"]];
-      if (transition) {
-        const guardPassed = evaluateGuard(
-          transition.guard,
-          { context, event, spawn },
+      const definition = stateNode.on[event.type as TEvent["type"]];
+      if (definition) {
+        const transition = findValidTransition(
+          definition,
+          context,
+          event,
+          spawn,
           implementations,
         );
-        if (guardPassed) {
+        if (transition) {
           return { transition, fromPath: currentPath };
         }
       }
@@ -241,21 +243,19 @@ export function findTransitionInPath<TContext, TEvent extends EventObject>(
 
     // Handle delayed transitions
     if (stateNode?.after && event.type === "$delay") {
+      // deno-lint-ignore no-explicit-any
       const delayKey = (event as any).key;
       if (delayKey !== undefined && delayKey in stateNode.after) {
-        const candidate = stateNode.after[delayKey];
-        const transitions = Array.isArray(candidate) ? candidate : [candidate];
-
-        for (const t of transitions) {
-          const transition = typeof t === "string" ? { target: t } : t;
-          const guardPassed = evaluateGuard(
-            transition.guard,
-            { context, event, spawn },
-            implementations,
-          );
-          if (guardPassed) {
-            return { transition, fromPath: currentPath };
-          }
+        const definition = stateNode.after[delayKey];
+        const transition = findValidTransition(
+          definition,
+          context,
+          event,
+          spawn,
+          implementations,
+        );
+        if (transition) {
+          return { transition, fromPath: currentPath };
         }
       }
     }
@@ -325,7 +325,7 @@ export interface TransitionResult<TContext> {
   /** Whether a transition occurred */
   changed: boolean;
   /** Action results (effects) */
-  effects?: any[];
+  effects?: unknown[];
   /** Updated history */
   historyValue?: Record<string, StateValue>;
 }
@@ -334,6 +334,7 @@ function getValueAtPath(
   value: StateValue,
   path: string[],
 ): StateValue | undefined {
+  // deno-lint-ignore no-explicit-any
   let current: any = value;
   for (const key of path) {
     if (
@@ -354,7 +355,10 @@ export function computeTransition<TContext, TEvent extends EventObject>(
   currentContext: TContext,
   event: TEvent,
   historyValue: Record<string, StateValue> | undefined,
-  spawn?: (logic: any, options?: any) => any,
+  spawn?: (
+    logic: ActorLogic<unknown, unknown, EventObject>,
+    options?: { id?: string; input?: unknown },
+  ) => unknown,
 ): TransitionResult<TContext> {
   const currentPaths = stateValueToPaths(currentState);
 
@@ -439,11 +443,11 @@ export function computeTransition<TContext, TEvent extends EventObject>(
         }
       }
 
-      const effects: any[] = [];
+      const effects: unknown[] = [];
       const visitedExit = new Set<string>();
       const nodesToExit: {
         path: string[];
-        config: StateNodeConfig<any, any>;
+        config: StateNodeConfig<TContext, TEvent>;
       }[] = [];
 
       // Collect exit actions
@@ -489,7 +493,7 @@ export function computeTransition<TContext, TEvent extends EventObject>(
       const visitedEnter = new Set<string>();
       const nodesToEnter: {
         path: string[];
-        config: StateNodeConfig<any, any>;
+        config: StateNodeConfig<TContext, TEvent>;
       }[] = [];
 
       affectedNextPaths.forEach((p) => {
@@ -549,16 +553,18 @@ export function computeTransition<TContext, TEvent extends EventObject>(
 
   // Try global transitions
   if (machine.config.on) {
-    const globalTransition = machine.config.on[event.type as TEvent["type"]];
-    if (globalTransition) {
-      const guardPassed = evaluateGuard(
-        globalTransition.guard,
-        { context: currentContext, event, spawn },
+    const definition = machine.config.on[event.type as TEvent["type"]];
+    if (definition) {
+      const globalTransition = findValidTransition(
+        definition,
+        currentContext,
+        event,
+        spawn,
         machine.implementations,
       );
 
-      if (guardPassed && globalTransition.target) {
-        const effects: any[] = [];
+      if (globalTransition && globalTransition.target) {
+        const effects: unknown[] = [];
 
         // Execute exit actions for all current states
         for (const currentPath of currentPaths) {
@@ -805,4 +811,50 @@ function fillParallelStates<TContext, TEvent extends EventObject>(
   }
 
   return value;
+}
+
+/**
+ * Normalize transition definition to array of config objects
+ */
+function normalizeTransitionDefinition<TContext, TEvent extends EventObject>(
+  definition: TransitionDefinition<TContext, TEvent>,
+): TransitionConfig<TContext, TEvent>[] {
+  if (Array.isArray(definition)) {
+    return definition.map((d) =>
+      typeof d === "string" ? { target: d } : d
+    ) as TransitionConfig<TContext, TEvent>[];
+  }
+  if (typeof definition === "string") {
+    return [{ target: definition }];
+  }
+  return [definition as TransitionConfig<TContext, TEvent>];
+}
+
+/**
+ * Find the first valid transition from a definition
+ */
+function findValidTransition<TContext, TEvent extends EventObject>(
+  definition: TransitionDefinition<TContext, TEvent>,
+  context: TContext,
+  event: TEvent,
+  spawn?: (
+    logic: ActorLogic<unknown, unknown, EventObject>,
+    options?: { id?: string; input?: unknown },
+  ) => unknown,
+  implementations?: MachineImplementations<TContext, TEvent>,
+): TransitionConfig<TContext, TEvent> | null {
+  const transitions = normalizeTransitionDefinition(definition);
+
+  for (const transition of transitions) {
+    const guardPassed = evaluateGuard(
+      transition.guard,
+      { context, event, spawn },
+      implementations,
+    );
+    if (guardPassed) {
+      return transition;
+    }
+  }
+
+  return null;
 }

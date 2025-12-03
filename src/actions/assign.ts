@@ -48,7 +48,7 @@ export function assign<TContext extends object, TEvent extends EventObject>(
           // @ts-ignore - TypeScript has trouble with this pattern
           updates[key] = value(args);
         } else {
-          // @ts-ignore
+          // @ts-ignore - TypeScript has trouble with this pattern
           updates[key] = value;
         }
       }

@@ -2,16 +2,16 @@
  * Tests for hierarchical (nested) states
  */
 
-import { assertEquals } from 'jsr:@std/assert';
-import { createMachine, createActor, assign } from '../src/mod.ts';
+import { assertEquals } from "@std/assert";
+import { assign, createActor, createMachine } from "../src/mod.ts";
 
-Deno.test('hierarchical - creates machine with nested states', () => {
+Deno.test("hierarchical - creates machine with nested states", () => {
   const machine = createMachine({
-    id: 'nested',
-    initial: 'parent',
+    id: "nested",
+    initial: "parent",
     states: {
       parent: {
-        initial: 'child1',
+        initial: "child1",
         states: {
           child1: {},
           child2: {},
@@ -20,16 +20,16 @@ Deno.test('hierarchical - creates machine with nested states', () => {
     },
   });
 
-  assertEquals(machine.config.id, 'nested');
-  assertEquals(machine.initialState, 'parent');
+  assertEquals(machine.config.id, "nested");
+  assertEquals(machine.initialState, "parent");
 });
 
-Deno.test('hierarchical - starts in nested initial state', () => {
+Deno.test("hierarchical - starts in nested initial state", () => {
   const machine = createMachine({
-    initial: 'parent',
+    initial: "parent",
     states: {
       parent: {
-        initial: 'child1',
+        initial: "child1",
         states: {
           child1: {},
           child2: {},
@@ -42,25 +42,25 @@ Deno.test('hierarchical - starts in nested initial state', () => {
   actor.start();
 
   const state = actor.getSnapshot();
-  assertEquals(state.value, { parent: 'child1' });
-  assertEquals(state.matches('parent'), true);
-  assertEquals(state.matches('parent.child1'), true);
-  assertEquals(state.matches({ parent: 'child1' }), true);
+  assertEquals(state.value, { parent: "child1" });
+  assertEquals(state.matches("parent"), true);
+  assertEquals(state.matches("parent.child1"), true);
+  assertEquals(state.matches({ parent: "child1" }), true);
 });
 
-Deno.test('hierarchical - transitions between child states', () => {
+Deno.test("hierarchical - transitions between child states", () => {
   const machine = createMachine<
     Record<string, never>,
-    { type: 'NEXT' }
+    { type: "NEXT" }
   >({
-    initial: 'parent',
+    initial: "parent",
     states: {
       parent: {
-        initial: 'child1',
+        initial: "child1",
         states: {
           child1: {
             on: {
-              NEXT: { target: 'child2' },
+              NEXT: { target: "child2" },
             },
           },
           child2: {},
@@ -72,25 +72,25 @@ Deno.test('hierarchical - transitions between child states', () => {
   const actor = createActor(machine);
   actor.start();
 
-  assertEquals(actor.getSnapshot().value, { parent: 'child1' });
+  assertEquals(actor.getSnapshot().value, { parent: "child1" });
 
-  actor.send({ type: 'NEXT' });
-  assertEquals(actor.getSnapshot().value, { parent: 'child2' });
+  actor.send({ type: "NEXT" });
+  assertEquals(actor.getSnapshot().value, { parent: "child2" });
 });
 
-Deno.test('hierarchical - transitions from child to top-level state', () => {
+Deno.test("hierarchical - transitions from child to top-level state", () => {
   const machine = createMachine<
     Record<string, never>,
-    { type: 'EXIT' }
+    { type: "EXIT" }
   >({
-    initial: 'parent',
+    initial: "parent",
     states: {
       parent: {
-        initial: 'child1',
+        initial: "child1",
         states: {
           child1: {
             on: {
-              EXIT: { target: 'done' },
+              EXIT: { target: "done" },
             },
           },
         },
@@ -102,28 +102,28 @@ Deno.test('hierarchical - transitions from child to top-level state', () => {
   const actor = createActor(machine);
   actor.start();
 
-  assertEquals(actor.getSnapshot().value, { parent: 'child1' });
+  assertEquals(actor.getSnapshot().value, { parent: "child1" });
 
-  actor.send({ type: 'EXIT' });
-  assertEquals(actor.getSnapshot().value, 'done');
+  actor.send({ type: "EXIT" });
+  assertEquals(actor.getSnapshot().value, "done");
 });
 
-Deno.test('hierarchical - deeply nested states', () => {
+Deno.test("hierarchical - deeply nested states", () => {
   const machine = createMachine<
     Record<string, never>,
-    { type: 'NEXT' }
+    { type: "NEXT" }
   >({
-    initial: 'level1',
+    initial: "level1",
     states: {
       level1: {
-        initial: 'level2',
+        initial: "level2",
         states: {
           level2: {
-            initial: 'level3',
+            initial: "level3",
             states: {
               level3: {
                 on: {
-                  NEXT: { target: 'level3b' },
+                  NEXT: { target: "level3b" },
                 },
               },
               level3b: {},
@@ -138,48 +138,48 @@ Deno.test('hierarchical - deeply nested states', () => {
   actor.start();
 
   const state = actor.getSnapshot();
-  assertEquals(state.value, { level1: { level2: 'level3' } });
-  assertEquals(state.matches('level1'), true);
-  assertEquals(state.matches('level1.level2'), true);
-  assertEquals(state.matches('level1.level2.level3'), true);
+  assertEquals(state.value, { level1: { level2: "level3" } });
+  assertEquals(state.matches("level1"), true);
+  assertEquals(state.matches("level1.level2"), true);
+  assertEquals(state.matches("level1.level2.level3"), true);
 
-  actor.send({ type: 'NEXT' });
-  assertEquals(actor.getSnapshot().value, { level1: { level2: 'level3b' } });
+  actor.send({ type: "NEXT" });
+  assertEquals(actor.getSnapshot().value, { level1: { level2: "level3b" } });
 });
 
-Deno.test('hierarchical - executes entry/exit actions in correct order', () => {
+Deno.test("hierarchical - executes entry/exit actions in correct order", () => {
   const events: string[] = [];
 
   const machine = createMachine<
     Record<string, never>,
-    { type: 'NEXT' } | { type: 'EXIT' }
+    { type: "NEXT" } | { type: "EXIT" }
   >({
-    initial: 'parent',
+    initial: "parent",
     states: {
       parent: {
-        entry: () => events.push('enter:parent'),
-        exit: () => events.push('exit:parent'),
-        initial: 'child1',
+        entry: () => events.push("enter:parent"),
+        exit: () => events.push("exit:parent"),
+        initial: "child1",
         states: {
           child1: {
-            entry: () => events.push('enter:child1'),
-            exit: () => events.push('exit:child1'),
+            entry: () => events.push("enter:child1"),
+            exit: () => events.push("exit:child1"),
             on: {
-              NEXT: { target: 'child2' },
-              EXIT: { target: 'done' },
+              NEXT: { target: "child2" },
+              EXIT: { target: "done" },
             },
           },
-        child2: {
-          entry: () => events.push('enter:child2'),
-          exit: () => events.push('exit:child2'),
-          on: {
-            EXIT: { target: 'done' },
+          child2: {
+            entry: () => events.push("enter:child2"),
+            exit: () => events.push("exit:child2"),
+            on: {
+              EXIT: { target: "done" },
+            },
           },
-        },
         },
       },
       done: {
-        entry: () => events.push('enter:done'),
+        entry: () => events.push("enter:done"),
       },
     },
   });
@@ -188,27 +188,27 @@ Deno.test('hierarchical - executes entry/exit actions in correct order', () => {
   actor.start();
 
   // Initial entry: parent -> child1
-  assertEquals(events, ['enter:parent', 'enter:child1']);
+  assertEquals(events, ["enter:parent", "enter:child1"]);
 
   events.length = 0;
-  actor.send({ type: 'NEXT' });
+  actor.send({ type: "NEXT" });
 
   // Transition within parent: child1 -> child2
-  assertEquals(events, ['exit:child1', 'enter:child2']);
+  assertEquals(events, ["exit:child1", "enter:child2"]);
 
   events.length = 0;
-  actor.send({ type: 'EXIT' });
+  actor.send({ type: "EXIT" });
 
   // Exit parent hierarchy: child2 -> parent -> done
-  assertEquals(events, ['exit:child2', 'exit:parent', 'enter:done']);
+  assertEquals(events, ["exit:child2", "exit:parent", "enter:done"]);
 });
 
-Deno.test('hierarchical - parent state handles event if child does not', () => {
+Deno.test("hierarchical - parent state handles event if child does not", () => {
   const machine = createMachine<
     { count: number },
-    { type: 'INC' } | { type: 'RESET' }
+    { type: "INC" } | { type: "RESET" }
   >({
-    initial: 'active',
+    initial: "active",
     context: { count: 0 },
     states: {
       active: {
@@ -217,7 +217,7 @@ Deno.test('hierarchical - parent state handles event if child does not', () => {
             actions: assign({ count: 0 }),
           },
         },
-        initial: 'idle',
+        initial: "idle",
         states: {
           idle: {
             on: {
@@ -234,24 +234,24 @@ Deno.test('hierarchical - parent state handles event if child does not', () => {
   const actor = createActor(machine);
   actor.start();
 
-  actor.send({ type: 'INC' });
+  actor.send({ type: "INC" });
   assertEquals(actor.getSnapshot().context.count, 1);
 
   // RESET is handled by parent
-  actor.send({ type: 'RESET' });
+  actor.send({ type: "RESET" });
   assertEquals(actor.getSnapshot().context.count, 0);
 });
 
-Deno.test('hierarchical - context updates work with nested states', () => {
+Deno.test("hierarchical - context updates work with nested states", () => {
   const machine = createMachine<
     { value: string },
-    { type: 'UPDATE'; value: string }
+    { type: "UPDATE"; value: string }
   >({
-    initial: 'parent',
-    context: { value: '' },
+    initial: "parent",
+    context: { value: "" },
     states: {
       parent: {
-        initial: 'child',
+        initial: "child",
         states: {
           child: {
             on: {
@@ -268,6 +268,6 @@ Deno.test('hierarchical - context updates work with nested states', () => {
   const actor = createActor(machine);
   actor.start();
 
-  actor.send({ type: 'UPDATE', value: 'hello' });
-  assertEquals(actor.getSnapshot().context.value, 'hello');
+  actor.send({ type: "UPDATE", value: "hello" });
+  assertEquals(actor.getSnapshot().context.value, "hello");
 });

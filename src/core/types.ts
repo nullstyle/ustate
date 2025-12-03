@@ -22,9 +22,9 @@ export interface ActionContext<TContext, TEvent extends EventObject> {
   event: TEvent;
   /** Spawn an actor */
   spawn?: (
-    logic: ActorLogic<any, any, any>,
-    options?: { id?: string; input?: any },
-  ) => any;
+    logic: ActorLogic<unknown, unknown, EventObject>,
+    options?: { id?: string; input?: unknown },
+  ) => unknown;
 }
 
 /**
@@ -78,28 +78,36 @@ export interface TransitionConfig<TContext, TEvent extends EventObject> {
 }
 
 /**
+ * Transition definition - can be a string target, a transition config object, or an array of them
+ */
+export type TransitionDefinition<TContext, TEvent extends EventObject> =
+  | string
+  | TransitionConfig<TContext, TEvent>
+  | (string | TransitionConfig<TContext, TEvent>)[];
+
+/**
  * Map of event types to transitions
  */
 export type TransitionMap<TContext, TEvent extends EventObject> = {
-  [K in TEvent["type"]]?: TransitionConfig<TContext, TEvent>;
+  [K in TEvent["type"]]?: TransitionDefinition<TContext, TEvent>;
 };
 
 /**
  * Actor logic types
  */
 export type ActorLogic<
-  TInput = any,
-  TOutput = any,
+  TInput = unknown,
+  TOutput = unknown,
   TEvent extends EventObject = EventObject,
 > =
-  | Machine<any, TEvent>
+  | Machine<unknown, TEvent>
   | PromiseLogic<TInput, TOutput>
   | CallbackLogic<TEvent>;
 
 /**
  * Promise-based actor logic
  */
-export interface PromiseLogic<TInput = any, TOutput = any> {
+export interface PromiseLogic<TInput = unknown, TOutput = unknown> {
   __type: "promise";
   logic: (input: TInput) => Promise<TOutput>;
 }
@@ -112,7 +120,7 @@ export interface CallbackLogic<TEvent extends EventObject = EventObject> {
   logic: (params: {
     sendBack: (event: TEvent) => void;
     receive: (listener: (event: TEvent) => void) => void;
-    input: any;
+    input: unknown;
   }) => (() => void) | void;
 }
 
@@ -121,12 +129,12 @@ export interface CallbackLogic<TEvent extends EventObject = EventObject> {
  */
 export interface InvokeConfig<TContext, TEvent extends EventObject> {
   id?: string;
-  src: ActorLogic<any, any, any> | string;
+  src: ActorLogic<unknown, unknown, EventObject> | string;
   input?:
-    | ((args: { context: TContext; event: TEvent }) => any)
-    | Record<string, any>;
-  onDone?: TransitionConfig<TContext, TEvent>;
-  onError?: TransitionConfig<TContext, TEvent>;
+    | ((args: { context: TContext; event: TEvent }) => unknown)
+    | Record<string, unknown>;
+  onDone?: TransitionDefinition<TContext, TEvent>;
+  onError?: TransitionDefinition<TContext, TEvent>;
 }
 
 /**
@@ -136,16 +144,9 @@ export interface StateNodeConfig<TContext, TEvent extends EventObject> {
   /** Transitions from this state */
   on?: TransitionMap<TContext, TEvent>;
   /** Delayed transitions */
-  after?: Record<
-    string | number,
-    | TransitionConfig<TContext, TEvent>
-    | string
-    | (TransitionConfig<TContext, TEvent> | string)[]
-  >;
+  after?: Record<string | number, TransitionDefinition<TContext, TEvent>>;
   /** Eventless transitions */
-  always?:
-    | TransitionConfig<TContext, TEvent>
-    | TransitionConfig<TContext, TEvent>[];
+  always?: TransitionDefinition<TContext, TEvent>;
   /** Actions to execute on entry to this state */
   entry?: ActionDefinition<TContext, TEvent> | ActionDefinition<
     TContext,

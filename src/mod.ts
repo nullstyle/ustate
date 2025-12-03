@@ -9,6 +9,9 @@ export { createMachine } from "./core/machine.ts";
 export { createActor } from "./core/actor.ts";
 export { setup } from "./setup.ts";
 
+// Utilities
+export { waitFor } from "./utils.ts";
+
 // Actions
 export { assign } from "./actions/assign.ts";
 
@@ -29,3 +32,4 @@ export type {
   Subscription,
   TransitionConfig,
 } from "./core/types.ts";
+export type { WaitForOptions } from "./utils.ts";

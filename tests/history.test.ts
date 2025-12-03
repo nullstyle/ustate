@@ -1,4 +1,4 @@
-import { assertEquals } from "https://deno.land/std@0.208.0/assert/mod.ts";
+import { assertEquals } from "@std/assert";
 import { createMachine } from "../src/core/machine.ts";
 import { createActor } from "../src/core/actor.ts";
 
@@ -164,6 +164,7 @@ Deno.test("History: Shallow history in parallel regions", () => {
   // Toggle region1 to 'on'
   actor.send({ type: "TOGGLE" });
 
+  // deno-lint-ignore no-explicit-any
   const snapshot1 = actor.getSnapshot().value as any;
   assertEquals(snapshot1.active.region1, "on");
 
@@ -174,6 +175,7 @@ Deno.test("History: Shallow history in parallel regions", () => {
   // Resume (target history of region1)
   actor.send({ type: "RESUME" });
 
+  // deno-lint-ignore no-explicit-any
   const snapshot2 = actor.getSnapshot().value as any;
   assertEquals(
     snapshot2.active.region1,

@@ -20,6 +20,7 @@ function checkUnsupportedFeatures<TContext, TEvent extends EventObject>(
 
   // Check for string actor sources (not supported)
   function checkActorSources(
+    // deno-lint-ignore no-explicit-any
     states: Record<string, any>,
     path: string = "",
   ): void {
@@ -48,6 +49,7 @@ function checkUnsupportedFeatures<TContext, TEvent extends EventObject>(
 
   // Check for final states (not supported)
   function checkFinalStates(
+    // deno-lint-ignore no-explicit-any
     states: Record<string, any>,
     path: string = "",
   ): void {

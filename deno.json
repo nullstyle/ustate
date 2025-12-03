@@ -10,6 +10,9 @@
     "example:traffic-light": "deno run examples/traffic-light.ts",
     "example:media-player": "deno run examples/media-player.ts"
   },
+  "imports": {
+    "@std/assert": "jsr:@std/assert@^0.226.0"
+  },
   "publish": {
     "include": ["src/", "README.md", "LICENSE"],
     "exclude": ["**/*.test.ts", "examples/", "tests/"]

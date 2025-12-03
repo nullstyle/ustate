@@ -1,19 +1,16 @@
-import {
-  assert,
-  assertEquals,
-  assertExists,
-} from "https://deno.land/std@0.208.0/assert/mod.ts";
+import { assert, assertEquals, assertExists } from "@std/assert";
 import { createMachine } from "../src/core/machine.ts";
 import { createActor } from "../src/core/actor.ts";
 import { assign } from "../src/actions/assign.ts";
 import { sendParent, sendTo } from "../src/actions/spawn.ts";
 
 // Helper for callback logic
-function fromCallback(logic: any) {
-  return { __type: "callback" as const, logic };
+function fromCallback(logic: unknown) {
+  // deno-lint-ignore no-explicit-any
+  return { __type: "callback" as const, logic } as any;
 }
 
-Deno.test("Bugfix: Parallel state actor independence", async () => {
+Deno.test("Bugfix: Parallel state actor independence", () => {
   let callbackCallCount = 0;
   let cleanupCallCount = 0;
 
@@ -30,15 +27,21 @@ Deno.test("Bugfix: Parallel state actor independence", async () => {
               a1: {
                 invoke: {
                   id: "serviceA",
-                  src: fromCallback(({ receive }: any) => {
-                    callbackCallCount++;
-                    receive((event: any) => {
-                      // Handle events if needed
-                    });
-                    return () => {
-                      cleanupCallCount++;
-                    };
-                  }),
+                  src: fromCallback(
+                    (
+                      { receive }: {
+                        receive: (cb: (event: unknown) => void) => void;
+                      },
+                    ) => {
+                      callbackCallCount++;
+                      receive((_event: unknown) => {
+                        // Handle events if needed
+                      });
+                      return () => {
+                        cleanupCallCount++;
+                      };
+                    },
+                  ),
                 },
                 on: {
                   NEXT_A: { target: "a2" },
@@ -76,7 +79,7 @@ Deno.test("Bugfix: Parallel state actor independence", async () => {
   // Transition Region B
   actor.send({ type: "NEXT_B" });
 
-  const snapshot = actor.getSnapshot();
+  const _snapshot = actor.getSnapshot();
   // We expect Region A to still be in a1, and Region B to be in b2
   // And critically, the actor in A should NOT have been stopped.
 
@@ -111,7 +114,7 @@ Deno.test("Feature: Parent-Child communication via sendParent", () => {
     id: "parent",
     initial: "waiting",
     context: {
-      greeting: null,
+      greeting: null as string | null,
     },
     states: {
       waiting: {
@@ -123,7 +126,8 @@ Deno.test("Feature: Parent-Child communication via sendParent", () => {
           CHILD_GREETING: {
             target: "received",
             actions: assign({
-              greeting: ({ event }: any) => event.msg,
+              greeting: ({ event }) =>
+                "msg" in event ? (event.msg as string) : null,
             }),
           },
         },
@@ -149,17 +153,20 @@ Deno.test("Feature: Parent-Child communication via sendParent", () => {
 });
 
 Deno.test("Feature: Cross-Actor messaging via sendTo", () => {
+  // deno-lint-ignore no-explicit-any
   let childReceivedEvent: any = null;
 
   const childMachine = createMachine({
     id: "child",
     initial: "listening",
+    // deno-lint-ignore no-explicit-any
     context: { lastEvent: null as any },
     states: {
       listening: {
         on: {
           PING: {
             actions: assign({
+              // deno-lint-ignore no-explicit-any
               lastEvent: ({ event }: any) => {
                 childReceivedEvent = event;
                 return event;
@@ -178,7 +185,8 @@ Deno.test("Feature: Cross-Actor messaging via sendTo", () => {
       ready: {
         invoke: {
           id: "child-actor",
-          src: childMachine,
+          // deno-lint-ignore no-explicit-any
+          src: childMachine as any,
         },
         on: {
           SEND_PING: {
@@ -195,7 +203,9 @@ Deno.test("Feature: Cross-Actor messaging via sendTo", () => {
   actor.send({ type: "SEND_PING" });
 
   assertExists(childReceivedEvent, "Child should have received event");
+  // deno-lint-ignore no-explicit-any
   assertEquals((childReceivedEvent as any).type, "PING");
+  // deno-lint-ignore no-explicit-any
   assertEquals((childReceivedEvent as any).data, 123);
 });
 
@@ -267,6 +277,7 @@ Deno.test("Feature: Spawning actors within assign action", () => {
 
   const machine = createMachine({
     context: {
+      // deno-lint-ignore no-explicit-any
       childRef: null as any,
     },
     initial: "idle",
@@ -275,6 +286,7 @@ Deno.test("Feature: Spawning actors within assign action", () => {
         on: {
           SPAWN: {
             actions: assign({
+              // deno-lint-ignore no-explicit-any
               childRef: ({ spawn }: any) => {
                 return spawn(childMachine);
               },

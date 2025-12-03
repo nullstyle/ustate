@@ -2,7 +2,7 @@
  * Tests for machine creation and basic functionality
  */
 
-import { assertEquals, assertThrows } from "jsr:@std/assert";
+import { assertEquals, assertThrows } from "@std/assert";
 import { assign, createActor, createMachine } from "../src/mod.ts";
 
 Deno.test("createMachine - creates a valid machine", () => {

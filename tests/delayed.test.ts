@@ -1,10 +1,7 @@
-import {
-  assert,
-  assertEquals,
-} from "https://deno.land/std@0.208.0/assert/mod.ts";
+import { assertEquals } from "@std/assert";
 import { createMachine } from "../src/core/machine.ts";
 import { createActor } from "../src/core/actor.ts";
-import { assign } from "../src/actions/assign.ts";
+// import { assign } from "../src/actions/assign.ts";
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -127,7 +124,9 @@ Deno.test("Delayed transitions: parallel states", async () => {
   const actor = createActor(machine);
   actor.start();
 
-  const getSnapshot = () => (actor.getSnapshot().value as any).root;
+  const getSnapshot = () =>
+    // deno-lint-ignore no-explicit-any
+    (actor.getSnapshot().value as Record<string, any>).root;
 
   // Initial state
   assertEquals(getSnapshot().timer1, "idle");

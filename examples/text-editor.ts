@@ -2,7 +2,7 @@
  * Text editor example - demonstrates guards and complex context
  */
 
-import { assign, createActor, createMachine, setup } from "../src/mod.ts";
+import { assign, createActor, setup } from "../src/mod.ts";
 
 // Define types
 type Context = {

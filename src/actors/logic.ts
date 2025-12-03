@@ -2,32 +2,34 @@
  * Actor logic helper functions
  */
 
-import type { CallbackLogic, PromiseLogic } from '../core/types.ts';
+import type { CallbackLogic, PromiseLogic } from "../core/types.ts";
 
 /**
  * Create a promise-based actor logic
  */
-export function fromPromise<TInput = any, TOutput = any>(
-  promiseFn: (input: TInput) => Promise<TOutput>
+export function fromPromise<TInput = unknown, TOutput = unknown>(
+  logic: (input: TInput) => Promise<TOutput>,
 ): PromiseLogic<TInput, TOutput> {
   return {
-    __type: 'promise',
-    logic: promiseFn
+    __type: "promise",
+    logic,
   };
 }
 
 /**
  * Create a callback-based actor logic
  */
-export function fromCallback<TEvent extends { type: string } = { type: string }>(
+export function fromCallback<
+  TEvent extends { type: string } = { type: string },
+>(
   callbackFn: (params: {
     sendBack: (event: TEvent) => void;
     receive: (listener: (event: TEvent) => void) => void;
-    input: any;
-  }) => (() => void) | void
+    input: unknown;
+  }) => (() => void) | void,
 ): CallbackLogic<TEvent> {
   return {
-    __type: 'callback',
-    logic: callbackFn
+    __type: "callback",
+    logic: callbackFn,
   };
 }

@@ -1,106 +1,111 @@
-import { assertEquals } from 'https://deno.land/std@0.208.0/assert/mod.ts';
-import { createActor, createMachine, assign } from '../src/mod.ts';
+import { assertEquals } from "@std/assert";
+import { assign, createActor, createMachine } from "../src/mod.ts";
 
-Deno.test('spawn - basic spawned actor lifecycle', () => {
-  const childMachine = createMachine<
+Deno.test("spawn - basic spawned actor lifecycle", () => {
+  const _childMachine = createMachine<
     { count: number },
-    { type: 'INC' }
+    { type: "INC" }
   >({
-    initial: 'active',
+    initial: "active",
     context: { count: 0 },
     states: {
       active: {
         on: {
           INC: {
             actions: assign({
-              count: ({ context }) => context.count + 1
-            })
-          }
-        }
-      }
-    }
+              count: ({ context }) => context.count + 1,
+            }),
+          },
+        },
+      },
+    },
   });
 
   const parentMachine = createMachine<
-    { childRef: any },
-    { type: 'SPAWN' } | { type: 'SEND_TO_CHILD' }
+    { childRef: { id: string; type: string } | null },
+    { type: "SPAWN" } | { type: "SEND_TO_CHILD" }
   >({
-    initial: 'idle',
+    initial: "idle",
     context: { childRef: null },
     states: {
       idle: {
         on: {
           SPAWN: {
-            target: 'active',
-            actions: assign({
+            target: "active",
+            actions: assign<{
+              childRef: { id: string; type: string } | null;
+            }, { type: "SPAWN" } | { type: "SEND_TO_CHILD" }>({
               childRef: () => {
                 // For now, we'll test the basic structure
                 // Full spawn implementation will come next
-                return { id: 'child-1', type: 'spawned' };
-              }
-            })
-          }
-        }
+                return { id: "child-1", type: "spawned" };
+              },
+            }),
+          },
+        },
       },
-      active: {}
-    }
+      active: {},
+    },
   });
 
   const actor = createActor(parentMachine);
   actor.start();
 
-  assertEquals(actor.getSnapshot().value, 'idle');
+  assertEquals(actor.getSnapshot().value, "idle");
   assertEquals(actor.getSnapshot().context.childRef, null);
 
-  actor.send({ type: 'SPAWN' });
+  actor.send({ type: "SPAWN" });
 
-  assertEquals(actor.getSnapshot().value, 'active');
-  assertEquals(actor.getSnapshot().context.childRef?.id, 'child-1');
+  assertEquals(actor.getSnapshot().value, "active");
+  assertEquals(actor.getSnapshot().context.childRef?.id, "child-1");
 });
 
-Deno.test('spawn - cleanup on parent stop', () => {
-  let childStopped = false;
+Deno.test("spawn - cleanup on parent stop", () => {
+  let _childStopped = false;
 
-  const childMachine = createMachine({
-    initial: 'active',
+  const _childMachine = createMachine({
+    initial: "active",
     states: {
       active: {
         exit: () => {
-          childStopped = true;
-        }
-      }
-    }
+          _childStopped = true;
+        },
+      },
+    },
   });
 
   // This test validates that spawned actors are tracked
   // and cleaned up when parent stops
   const parentMachine = createMachine<
-    { children: any[] },
-    { type: 'SPAWN' }
+    { children: { id: string }[] },
+    { type: "SPAWN" }
   >({
-    initial: 'active',
+    initial: "active",
     context: { children: [] },
     states: {
       active: {
         on: {
           SPAWN: {
-            actions: assign({
+            actions: assign<
+              { children: { id: string }[] },
+              { type: "SPAWN" }
+            >({
               children: ({ context }) => [
                 ...context.children,
-                { id: `child-${context.children.length}` }
-              ]
-            })
-          }
-        }
-      }
-    }
+                { id: `child-${context.children.length}` },
+              ],
+            }),
+          },
+        },
+      },
+    },
   });
 
   const actor = createActor(parentMachine);
   actor.start();
 
-  actor.send({ type: 'SPAWN' });
-  actor.send({ type: 'SPAWN' });
+  actor.send({ type: "SPAWN" });
+  actor.send({ type: "SPAWN" });
 
   assertEquals(actor.getSnapshot().context.children.length, 2);
 

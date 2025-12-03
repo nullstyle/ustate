@@ -1,4 +1,4 @@
-import { assertEquals } from "https://deno.land/std@0.208.0/assert/mod.ts";
+import { assertEquals } from "@std/assert";
 import { createMachine } from "../src/core/machine.ts";
 import { createActor } from "../src/core/actor.ts";
 import { assign } from "../src/actions/assign.ts";

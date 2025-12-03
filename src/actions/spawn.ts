@@ -5,14 +5,13 @@
 import type {
   ActionContext,
   ActorLogic,
-  ActorRef,
   EventObject,
   Machine,
   StateSnapshot,
   Subscription,
-} from '../core/types.ts';
-import { createActor } from '../core/actor.ts';
-import { createInvokedActor } from '../actors/invoke.ts';
+} from "../core/types.ts";
+import { createActor } from "../core/actor.ts";
+import { createInvokedActor } from "../actors/invoke.ts";
 
 /**
  * Spawned actor reference
@@ -21,8 +20,10 @@ export interface SpawnedActorRef<TEvent extends EventObject = EventObject> {
   id: string;
   send: (event: TEvent) => void;
   stop: () => void;
-  getSnapshot: () => StateSnapshot<any>;
-  subscribe?: (observer: (state: StateSnapshot<any>) => void) => Subscription;
+  getSnapshot: () => StateSnapshot<unknown>;
+  subscribe?: (
+    observer: (state: StateSnapshot<unknown>) => void,
+  ) => Subscription;
 }
 
 /**
@@ -30,7 +31,7 @@ export interface SpawnedActorRef<TEvent extends EventObject = EventObject> {
  */
 export interface SpawnOptions {
   id?: string;
-  input?: any;
+  input?: unknown;
   syncSnapshot?: boolean;
 }
 
@@ -38,9 +39,9 @@ export interface SpawnOptions {
  * Spawn context - provided to actions that can spawn actors
  */
 export interface SpawnContext {
-  spawn: <TLogic extends ActorLogic<any, any, any>>(
+  spawn: <TLogic extends ActorLogic<unknown, unknown, EventObject>>(
     logic: TLogic,
-    options?: SpawnOptions
+    options?: SpawnOptions,
   ) => SpawnedActorRef;
   spawnedActors: Map<string, SpawnedActorRef>;
 }
@@ -50,9 +51,9 @@ export interface SpawnContext {
  */
 export interface SpawnableActionContext<TContext, TEvent extends EventObject>
   extends ActionContext<TContext, TEvent> {
-  spawn: <TLogic extends ActorLogic<any, any, any>>(
+  spawn: <TLogic extends ActorLogic<unknown, unknown, EventObject>>(
     logic: TLogic,
-    options?: SpawnOptions
+    options?: SpawnOptions,
   ) => SpawnedActorRef;
 }
 
@@ -61,13 +62,16 @@ export interface SpawnableActionContext<TContext, TEvent extends EventObject>
  */
 export function createSpawnFunction(
   spawnedActors: Map<string, SpawnedActorRef>,
-  sendParent: (event: EventObject) => void
-): SpawnContext['spawn'] {
-  return function spawn<TLogic extends ActorLogic<any, any, any>>(
+  sendParent: (event: EventObject) => void,
+): SpawnContext["spawn"] {
+  return function spawn<
+    TLogic extends ActorLogic<unknown, unknown, EventObject>,
+  >(
     logic: TLogic,
-    options: SpawnOptions = {}
+    options: SpawnOptions = {},
   ): SpawnedActorRef {
-    const actorId = options.id || `spawned-${Math.random().toString(36).slice(2, 9)}`;
+    const actorId = options.id ||
+      `spawned-${Math.random().toString(36).slice(2, 9)}`;
 
     // Check if actor with this ID already exists
     if (spawnedActors.has(actorId)) {
@@ -79,7 +83,7 @@ export function createSpawnFunction(
 
     if (isMachine(logic)) {
       // Machine actor
-      const machine = logic as Machine<any, any>;
+      const machine = logic as Machine<unknown, EventObject>;
       const actor = createActor(machine);
       actor.start();
 
@@ -95,14 +99,15 @@ export function createSpawnFunction(
       const invokeConfig = {
         id: actorId,
         src: logic,
-        input: options.input,
+        // deno-lint-ignore no-explicit-any
+        input: options.input as any,
       };
 
       actorRef = createInvokedActor(
         invokeConfig,
         {},
-        { type: '$spawn' },
-        sendParent
+        { type: "$spawn" },
+        sendParent,
       ) as SpawnedActorRef;
     }
 
@@ -116,11 +121,13 @@ export function createSpawnFunction(
 /**
  * Type guard for machine logic
  */
-function isMachine(logic: ActorLogic<any, any, any>): boolean {
+function isMachine(
+  logic: ActorLogic<unknown, unknown, EventObject>,
+): boolean {
   return (
-    typeof logic === 'object' &&
-    'config' in logic &&
-    'initialState' in logic
+    typeof logic === "object" &&
+    "config" in logic &&
+    "initialState" in logic
   );
 }
 
@@ -128,7 +135,7 @@ function isMachine(logic: ActorLogic<any, any, any>): boolean {
  * Stop all spawned actors
  */
 export function stopAllSpawnedActors(
-  spawnedActors: Map<string, SpawnedActorRef>
+  spawnedActors: Map<string, SpawnedActorRef>,
 ): void {
   for (const actor of spawnedActors.values()) {
     try {
@@ -145,18 +152,20 @@ export function stopAllSpawnedActors(
  */
 export function sendTo<TEvent extends EventObject>(
   actorId: string,
-  event: TEvent | ((context: any, actionEvent: any) => TEvent)
+  event: TEvent | ((context: unknown, actionEvent: unknown) => TEvent),
 ) {
-  return ({ context, event: actionEvent }: ActionContext<any, any>) => {
+  return (
+    { context, event: actionEvent }: ActionContext<unknown, EventObject>,
+  ) => {
     // This will be handled by the actor system
     // We need to store this intent and execute it in the actor
-    const resolvedEvent = typeof event === 'function'
+    const resolvedEvent = typeof event === "function"
       ? event(context, actionEvent)
       : event;
 
     // This is a marker action that will be intercepted
     return {
-      type: '$$sendTo',
+      type: "$$sendTo",
       actorId,
       event: resolvedEvent,
     };
@@ -167,15 +176,17 @@ export function sendTo<TEvent extends EventObject>(
  * Create sendParent action for child actors
  */
 export function sendParent<TEvent extends EventObject>(
-  event: TEvent | ((context: any, actionEvent: any) => TEvent)
+  event: TEvent | ((context: unknown, actionEvent: unknown) => TEvent),
 ) {
-  return ({ context, event: actionEvent }: ActionContext<any, any>) => {
-    const resolvedEvent = typeof event === 'function'
+  return (
+    { context, event: actionEvent }: ActionContext<unknown, EventObject>,
+  ) => {
+    const resolvedEvent = typeof event === "function"
       ? event(context, actionEvent)
       : event;
 
     return {
-      type: '$$sendParent',
+      type: "$$sendParent",
       event: resolvedEvent,
     };
   };

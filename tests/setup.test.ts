@@ -2,7 +2,7 @@
  * Tests for setup function and implementations
  */
 
-import { assertEquals } from "jsr:@std/assert";
+import { assertEquals } from "@std/assert";
 import { assign, createActor, setup } from "../src/mod.ts";
 
 Deno.test("setup - creates machine with named actions", () => {
