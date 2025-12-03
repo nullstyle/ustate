@@ -1,7 +1,7 @@
 import { assertEquals } from "@std/assert";
 import { createActor, createMachine } from "../src/mod.ts";
 import { fromCallback, fromPromise } from "../src/actors/logic.ts";
-import type { ActorLogic } from "../src/core/types.ts";
+import type { ActorLogic, EventObject } from "../src/core/types.ts";
 
 Deno.test("invoke - promise actor resolves successfully", async () => {
   const events: string[] = [];
