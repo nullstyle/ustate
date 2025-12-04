@@ -2,6 +2,7 @@
  * Spawn action for creating dynamic actors
  */
 
+import { getServices } from "../core/services.ts";
 import type {
   ActionContext,
   ActorLogic,
@@ -71,7 +72,7 @@ export function createSpawnFunction(
     options: SpawnOptions = {},
   ): SpawnedActorRef {
     const actorId = options.id ||
-      `spawned-${Math.random().toString(36).slice(2, 9)}`;
+      getServices().generateId("spawned");
 
     // Check if actor with this ID already exists
     if (spawnedActors.has(actorId)) {

@@ -16,6 +16,19 @@ export { toMermaid } from "./mermaid.ts";
 // Actions
 export { assign } from "./actions/assign.ts";
 
+// System services (for testing and deterministic replay)
+export {
+  createCounterServices,
+  createDeterministicServices,
+  defaultServices,
+  getServices,
+  resetServices,
+  setServices,
+  withServices,
+  withServicesAsync,
+} from "./core/services.ts";
+export type { SystemServices } from "./core/services.ts";
+
 // Actor logic
 export { fromCallback, fromPromise } from "./actors/logic.ts";
 

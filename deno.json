@@ -11,7 +11,8 @@
     "example:media-player": "deno run examples/media-player.ts"
   },
   "imports": {
-    "@std/assert": "jsr:@std/assert@^0.226.0"
+    "@std/assert": "jsr:@std/assert@^0.226.0",
+    "@nullstyle/urand": "jsr:@nullstyle/urand@^0.2.0"
   },
   "publish": {
     "include": ["src/", "README.md", "LICENSE"],

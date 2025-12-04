@@ -2,6 +2,7 @@
  * Invoked actor management
  */
 
+import { getServices } from "../core/services.ts";
 import type {
   ActorLogic,
   CallbackLogic,
@@ -42,7 +43,7 @@ export function createInvokedActor<TContext, TEvent extends EventObject>(
   const _id = id;
   const _onDone = onDone;
 
-  const actorId = id || `invoked-${Math.random().toString(36).slice(2, 9)}`;
+  const actorId = id || getServices().generateId("invoked");
 
   // Resolve input
   let resolvedInput: unknown;

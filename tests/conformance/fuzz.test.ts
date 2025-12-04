@@ -12,6 +12,7 @@
  */
 
 import { assertEquals, assertExists } from "@std/assert";
+import { Prng } from "@nullstyle/urand";
 import {
   assign as uAssign,
   createActor as createUActor,
@@ -19,25 +20,25 @@ import {
 } from "../../src/mod.ts";
 
 // =============================================================================
-// Simple Random Generator (fast-check alternative for Deno)
+// Random Generator wrapper using @nullstyle/urand
 // =============================================================================
 
 class RandomGenerator {
-  private seed: number;
+  #prng: Prng;
 
   constructor(seed?: number) {
-    this.seed = seed ?? Date.now();
+    this.#prng = Prng.create(BigInt(seed ?? Date.now()));
   }
 
   /** Generate a pseudo-random number between 0 and 1 */
   next(): number {
-    this.seed = (this.seed * 1103515245 + 12345) & 0x7fffffff;
-    return this.seed / 0x7fffffff;
+    return this.#prng.nextF64();
   }
 
   /** Generate a random integer between min (inclusive) and max (exclusive) */
   int(min: number, max: number): number {
-    return Math.floor(this.next() * (max - min)) + min;
+    if (max <= min) return min;
+    return this.#prng.nextU32Range(min, max - 1);
   }
 
   /** Pick a random element from an array */
@@ -49,6 +50,15 @@ class RandomGenerator {
   array<T>(generator: () => T, minLen: number, maxLen: number): T[] {
     const len = this.int(minLen, maxLen);
     return Array.from({ length: len }, generator);
+  }
+
+  /** Clean up PRNG resources */
+  destroy(): void {
+    this.#prng.destroy();
+  }
+
+  [Symbol.dispose](): void {
+    this.destroy();
   }
 }
 
@@ -328,7 +338,7 @@ function fuzzMachine<TContext, TEvent extends { type: string }>(
 
   for (let run = 0; run < runs; run++) {
     const runSeed = seed + run;
-    const rng = new RandomGenerator(runSeed);
+    using rng = new RandomGenerator(runSeed);
     const events: TEvent[] = [];
     const stateHistory: unknown[] = [];
 
@@ -640,7 +650,7 @@ Deno.test("Fuzz: Context remains consistent under stress", () => {
   const actor = createUActor(machine);
   actor.start();
 
-  const rng = new RandomGenerator(42);
+  using rng = new RandomGenerator(42);
   let expectedCount = 0;
 
   for (let i = 0; i < 500; i++) {

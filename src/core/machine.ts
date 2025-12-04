@@ -2,6 +2,7 @@
  * State machine creation and management
  */
 
+import { getServices } from "./services.ts";
 import type {
   EventObject,
   Machine,
@@ -74,7 +75,7 @@ function registerInvokeTransitions<TContext, TEvent extends EventObject>(
 
     for (const invocation of invocations) {
       const invokeId = invocation.id ||
-        `invoked-${Math.random().toString(36).slice(2, 9)}`;
+        getServices().generateId("invoked");
 
       // Store the ID back in the invocation for later reference
       if (!invocation.id) {
