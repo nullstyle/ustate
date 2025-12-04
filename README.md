@@ -25,16 +25,6 @@ A JSR-native state machine library with full XState API compatibility.  *Yo, thi
 import { createMachine, createActor, assign } from 'jsr:@nullstyle/ustate';
 ```
 
-### Node.js
-
-```bash
-npx jsr add @nullstyle/ustate
-```
-
-```typescript
-import { createMachine, createActor, assign } from '@nullstyle/ustate';
-```
-
 ### Browsers
 
 ```typescript
