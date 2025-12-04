@@ -12,10 +12,10 @@ A JSR-native state machine library with full XState API compatibility.  *Yo, thi
 - **Invoked Actors** - Promise and callback actors with lifecycle management
 - **Spawned Actors** - Dynamic actor creation and management
 - **TypeScript-first** - Full type safety and excellent IDE support
-- **Zero dependencies** - Minimal bundle size (~15KB)
+- **Minimal dependencies** - Only depends on `@nullstyle/urand` for high-quality PRNG
 - **ESM-only** - Modern JavaScript modules
 - **Cross-runtime** - Works in Deno, Node.js, and browsers
-- **Well-tested** - Comprehensive test suite with 32 passing tests
+- **Well-tested** - Comprehensive test suite with 197 passing tests
 
 ## Installation
 
@@ -293,6 +293,19 @@ const timerMachine = createMachine({
 - **`fromPromise(fn)`** - Create promise-based actor logic
 - **`fromCallback(fn)`** - Create callback-based actor logic
 
+### Utilities
+
+- **`waitFor(actor, predicate, options?)`** - Wait for actor to reach a state matching predicate
+- **`toMermaid(machine)`** - Generate Mermaid diagram from machine
+
+### System Services (for testing)
+
+- **`createDeterministicServices(seed?)`** - Create seedable services for reproducible tests
+- **`createCounterServices(start?)`** - Create counter-based services for predictable IDs
+- **`withServices(services, fn)`** - Run function with temporary services
+- **`setServices(services)`** - Set global services instance
+- **`resetServices()`** - Reset to default services
+
 ### Actor Methods
 
 - **`actor.start()`** - Start the actor
@@ -307,6 +320,42 @@ const timerMachine = createMachine({
 - **`state.context`** - Current context
 - **`state.matches(value)`** - Check if state matches a value
 - **`state.can(event)`** - Check if event can be handled
+
+## Testing Support
+
+ustate provides deterministic services for reproducible testing:
+
+```typescript
+import { createDeterministicServices, withServices, createActor } from 'jsr:@nullstyle/ustate';
+
+// Run tests with deterministic ID generation
+const result = withServices(createDeterministicServices(12345), () => {
+  const actor = createActor(machine);
+  actor.start();
+  // IDs will be reproducible with the same seed
+  return actor.getSnapshot();
+});
+```
+
+## Visualization
+
+Generate Mermaid diagrams from your state machines:
+
+```typescript
+import { createMachine, toMermaid } from 'jsr:@nullstyle/ustate';
+
+const machine = createMachine({
+  id: 'toggle',
+  initial: 'inactive',
+  states: {
+    inactive: { on: { TOGGLE: { target: 'active' } } },
+    active: { on: { TOGGLE: { target: 'inactive' } } }
+  }
+});
+
+console.log(toMermaid(machine));
+// Outputs Mermaid stateDiagram-v2 syntax
+```
 
 ## Documentation
 
@@ -337,7 +386,7 @@ Deep state value merging for parallel states
 Actor system with invoked actors (promise and callback-based)
 Comprehensive test suite and working examples
 Initial documentation and API design
-The implementation focused on XState API compatibility while maintaining simplicity and zero dependencies, resulting in a production-ready state machine library suitable for real-world applications.
+The implementation focused on XState API compatibility while maintaining simplicity and minimal dependencies, resulting in a production-ready state machine library suitable for real-world applications.
 
 ### Zed, by way of Gemini 3 Pro said:
 

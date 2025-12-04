@@ -390,7 +390,7 @@ Use **ustate** when:
 - ✅ You want a smaller bundle size
 - ✅ You don't need advanced features
 - ✅ You're publishing to JSR
-- ✅ You want zero dependencies
+- ✅ You want minimal dependencies (only `@nullstyle/urand`)
 
 Use **XState** when:
 - ✅ You need SCXML compliance

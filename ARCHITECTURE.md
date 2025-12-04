@@ -9,7 +9,7 @@ This document describes the internal architecture of **ustate**.
 1. **Simplicity First** - Focus on core state machine functionality without advanced features
 2. **XState Compatibility** - Maintain API compatibility for common use cases
 3. **Type Safety** - Leverage TypeScript for excellent developer experience
-4. **Zero Dependencies** - Keep the runtime lightweight
+4. **Minimal Dependencies** - Only essential dependencies (`@nullstyle/urand` for high-quality PRNG)
 5. **Readable Code** - Prioritize code clarity over clever optimizations
 
 ## Project Structure
@@ -22,12 +22,17 @@ ustate/
 │   │   ├── machine.ts     # Machine creation
 │   │   ├── actor.ts       # Actor implementation
 │   │   ├── state.ts       # State snapshot
-│   │   └── transition.ts  # Transition logic
+│   │   ├── transition.ts  # Transition logic
+│   │   └── services.ts    # System services (ID generation, time)
 │   ├── actions/           # Built-in actions
 │   │   ├── assign.ts      # Context assignment
 │   │   └── index.ts       # Action utilities
+│   ├── actors/            # Actor logic implementations
+│   │   └── logic.ts       # fromPromise, fromCallback
 │   ├── setup.ts           # Setup function for v5 compatibility
 │   ├── compat.ts          # Compatibility layer
+│   ├── utils.ts           # Utility functions (waitFor)
+│   ├── mermaid.ts         # Mermaid diagram generation
 │   └── mod.ts             # Main entry point
 ├── tests/                 # Test files
 ├── examples/              # Example machines
@@ -110,10 +115,26 @@ The transition module handles the core state machine logic:
 Built-in actions that can be used in machines:
 
 - **assign** - Updates context immutably
-- **log** - Logs messages (utility)
-- **raise** - Raises events (placeholder for future implementation)
 
 The `assign` action is special - it mutates the context in place, but the context is already a copy created during the transition.
+
+### Services (`src/core/services.ts`)
+
+System services abstract non-deterministic operations for testability and deterministic replay:
+
+- **generateId** - Generates unique IDs using `@nullstyle/urand` PRNG
+- **now** - Returns current timestamp
+
+Available service implementations:
+
+- **defaultServices** - Production services using `@nullstyle/urand` for high-quality random ID generation
+- **createDeterministicServices(seed)** - Seedable services for reproducible testing
+- **createCounterServices(start)** - Simple counter-based IDs for predictable tests
+
+Helper functions:
+
+- **withServices(services, fn)** - Run code with temporary services
+- **setServices/resetServices** - Global service management
 
 ### Setup (`src/setup.ts`)
 
@@ -280,7 +301,7 @@ Potential future additions (in order of priority):
 | Always transitions | ✅ | ✅ |
 | SCXML compliance | ✅ | ❌ |
 | Bundle size | ~50KB | ~10KB |
-| Dependencies | Many | Zero |
+| Dependencies | Many | One (`@nullstyle/urand`) |
 
 ## Contributing
 
